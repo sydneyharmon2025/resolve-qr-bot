@@ -27,36 +27,32 @@ module.exports = async (req, res) => {
   try {
     const SIZE = 500;
 
-    // Generate QR code as buffer
     const qrBuffer = await QRCode.toBuffer(text, {
       width: SIZE,
       margin: 2,
       errorCorrectionLevel: 'H',
     });
 
-    // Load QR and logo with Jimp
     const qrImage = await Jimp.read(qrBuffer);
-    const logoUrl = process.env.LOGO_URL || 'https://i.imgur.com/wISxMXY.png';
-    const logoResponse = await fetch(logoUrl);
-    const logoBuffer = Buffer.from(await logoResponse.arrayBuffer());
-    const logoImage = await Jimp.read(logoBuffer);
 
-    // Resize logo to 20% of QR size
-    const logoSize = Math.floor(SIZE * 0.2);
-    logoImage.resize(logoSize, logoSize);
+    try {
+      const logoUrl = process.env.LOGO_URL || 'https://i.imgur.com/wISxMXY.png';
+      const logoImage = await Jimp.read(logoUrl);
+      const logoSize = Math.floor(SIZE * 0.2);
+      logoImage.resize(logoSize, logoSize);
 
-    // Add white background behind logo
-    const whiteBg = new Jimp(logoSize + 20, logoSize + 20, 0xffffffff);
-    whiteBg.composite(logoImage, 10, 10);
+      const whiteBg = new Jimp(logoSize + 20, logoSize + 20, 0xffffffff);
+      whiteBg.composite(logoImage, 10, 10);
 
-    // Center composite on QR
-    const x = Math.floor((SIZE - whiteBg.getWidth()) / 2);
-    const y = Math.floor((SIZE - whiteBg.getHeight()) / 2);
-    qrImage.composite(whiteBg, x, y);
+      const x = Math.floor((SIZE - whiteBg.getWidth()) / 2);
+      const y = Math.floor((SIZE - whiteBg.getHeight()) / 2);
+      qrImage.composite(whiteBg, x, y);
+    } catch (logoErr) {
+      console.log('Logo failed, using plain QR:', logoErr.message);
+    }
 
     const imageBuffer = await qrImage.getBufferAsync(Jimp.MIME_PNG);
 
-    // Upload to Slack
     const getUrlRes = await fetch('https://slack.com/api/files.getUploadURLExternal', {
       method: 'POST',
       headers: {
