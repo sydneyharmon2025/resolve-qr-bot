@@ -1,5 +1,5 @@
 const QRCode = require('qrcode');
-const { createCanvas, loadImage } = require('canvas');
+const Jimp = require('jimp');
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).end();
@@ -27,30 +27,36 @@ module.exports = async (req, res) => {
   try {
     const SIZE = 500;
 
-    // Generate QR code on canvas
-    const canvas = createCanvas(SIZE, SIZE);
-    await QRCode.toCanvas(canvas, text, {
+    // Generate QR code as buffer
+    const qrBuffer = await QRCode.toBuffer(text, {
       width: SIZE,
       margin: 2,
       errorCorrectionLevel: 'H',
     });
 
-    // Load and draw logo in center
+    // Load QR and logo with Jimp
+    const qrImage = await Jimp.read(qrBuffer);
     const logoUrl = process.env.LOGO_URL || 'https://i.imgur.com/wISxMXY.png';
-    const logo = await loadImage(logoUrl);
-    const ctx = canvas.getContext('2d');
-    const logoSize = SIZE * 0.2;
-    const logoX = (SIZE - logoSize) / 2;
-    const logoY = (SIZE - logoSize) / 2;
+    const logoResponse = await fetch(logoUrl);
+    const logoBuffer = Buffer.from(await logoResponse.arrayBuffer());
+    const logoImage = await Jimp.read(logoBuffer);
 
-    // White background behind logo
-    ctx.fillStyle = 'white';
-    ctx.fillRect(logoX - 6, logoY - 6, logoSize + 12, logoSize + 12);
-    ctx.drawImage(logo, logoX, logoY, logoSize, logoSize);
+    // Resize logo to 20% of QR size
+    const logoSize = Math.floor(SIZE * 0.2);
+    logoImage.resize(logoSize, logoSize);
 
-    const imageBuffer = canvas.toBuffer('image/png');
+    // Add white background behind logo
+    const whiteBg = new Jimp(logoSize + 20, logoSize + 20, 0xffffffff);
+    whiteBg.composite(logoImage, 10, 10);
 
-    // Step 1: Get upload URL
+    // Center composite on QR
+    const x = Math.floor((SIZE - whiteBg.getWidth()) / 2);
+    const y = Math.floor((SIZE - whiteBg.getHeight()) / 2);
+    qrImage.composite(whiteBg, x, y);
+
+    const imageBuffer = await qrImage.getBufferAsync(Jimp.MIME_PNG);
+
+    // Upload to Slack
     const getUrlRes = await fetch('https://slack.com/api/files.getUploadURLExternal', {
       method: 'POST',
       headers: {
@@ -63,14 +69,12 @@ module.exports = async (req, res) => {
     const urlData = await getUrlRes.json();
     if (!urlData.upload_url) throw new Error(`Get URL failed: ${JSON.stringify(urlData)}`);
 
-    // Step 2: Upload
     await fetch(urlData.upload_url, {
       method: 'POST',
       headers: { 'Content-Type': 'image/png' },
       body: imageBuffer,
     });
 
-    // Step 3: Complete
     const completeRes = await fetch('https://slack.com/api/files.completeUploadExternal', {
       method: 'POST',
       headers: {
