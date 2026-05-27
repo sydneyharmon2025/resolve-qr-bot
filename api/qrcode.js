@@ -38,7 +38,7 @@ module.exports = async (req, res) => {
         'Authorization': `Bearer ${process.env.SLACK_BOT_TOKEN}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ filename: 'qrcode.png', length: imageBuffer.length }),
+      body: JSON.stringify({ filename: 'qrcode.png', length: Number(imageBuffer.length) }),
     });
 
     const { upload_url, file_id, error: urlError } = await getUrlRes.json();
