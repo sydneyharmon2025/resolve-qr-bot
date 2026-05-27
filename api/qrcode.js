@@ -26,30 +26,27 @@ module.exports = async (req, res) => {
   try {
     const imageBuffer = await QRCode.toBuffer(text, { width: 500, margin: 2 });
 
-    console.log('Buffer length:', imageBuffer.length);
-    console.log('Token starts with:', process.env.SLACK_BOT_TOKEN?.substring(0, 10));
-    console.log('Channel ID:', channelId);
-
+    // Step 1: Get upload URL
     const getUrlRes = await fetch('https://slack.com/api/files.getUploadURLExternal', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.SLACK_BOT_TOKEN}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: JSON.stringify({ filename: 'qrcode.png', length: imageBuffer.length }),
+      body: `filename=qrcode.png&length=${imageBuffer.length}`,
     });
 
     const urlData = await getUrlRes.json();
-    console.log('Slack URL response:', JSON.stringify(urlData));
-
     if (!urlData.upload_url) throw new Error(`Get URL failed: ${JSON.stringify(urlData)}`);
 
+    // Step 2: Upload the image
     await fetch(urlData.upload_url, {
       method: 'POST',
       headers: { 'Content-Type': 'image/png' },
       body: imageBuffer,
     });
 
+    // Step 3: Complete upload and post to channel
     const completeRes = await fetch('https://slack.com/api/files.completeUploadExternal', {
       method: 'POST',
       headers: {
@@ -63,8 +60,6 @@ module.exports = async (req, res) => {
     });
 
     const completeData = await completeRes.json();
-    console.log('Complete response:', JSON.stringify(completeData));
-
     if (!completeData.ok) throw new Error(`Complete failed: ${completeData.error}`);
 
     return res.json({ response_type: 'in_channel', text: `✅ QR code for ${text}` });
