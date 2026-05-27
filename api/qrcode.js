@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const SIZE = 500;
+    const SIZE = 1080;
 
     const qrBuffer = await QRCode.toBuffer(text, {
       width: SIZE,
