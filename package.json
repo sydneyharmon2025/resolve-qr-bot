@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "dependencies": {
     "qrcode": "^1.5.3",
-    "canvas": "^2.11.2"
+    "jimp": "^0.22.12"
   }
 }
