@@ -19,18 +19,20 @@ module.exports = async (req, res) => {
   if (!text) {
     return res.json({ response_type: 'ephemeral', text: '👾 Usage: `/qrcode https://example.com`' });
   }
-
   try { new URL(text); } catch {
     return res.json({ response_type: 'ephemeral', text: '👾 Not a valid URL.' });
   }
 
   try {
     const SIZE = 1080;
-
     const qrBuffer = await QRCode.toBuffer(text, {
       width: SIZE,
       margin: 2,
       errorCorrectionLevel: 'H',
+      color: {
+        dark: '#222222',
+        light: '#ffffff',
+      },
     });
 
     const qrImage = await Jimp.read(qrBuffer);
@@ -40,10 +42,8 @@ module.exports = async (req, res) => {
       const logoImage = await Jimp.read(logoUrl);
       const logoSize = Math.floor(SIZE * 0.2);
       logoImage.resize(logoSize, logoSize);
-
       const whiteBg = new Jimp(logoSize + 20, logoSize + 20, 0xffffffff);
       whiteBg.composite(logoImage, 10, 10);
-
       const x = Math.floor((SIZE - whiteBg.getWidth()) / 2);
       const y = Math.floor((SIZE - whiteBg.getHeight()) / 2);
       qrImage.composite(whiteBg, x, y);
@@ -87,7 +87,6 @@ module.exports = async (req, res) => {
     if (!completeData.ok) throw new Error(`Complete failed: ${completeData.error}`);
 
     return res.json({ response_type: 'in_channel', text: `✅ QR code for ${text}` });
-
   } catch (err) {
     console.error('QR Error:', err.message);
     return res.json({ response_type: 'ephemeral', text: `❌ Error: ${err.message}` });
